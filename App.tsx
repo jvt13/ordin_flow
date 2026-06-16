@@ -9,6 +9,7 @@ import { ActivityIndicator, View } from 'react-native';
 import { RootNavigator } from './src/navigation';
 import { useAuthStore } from './src/store';
 import { useOfflineSync } from './src/hooks/useOfflineSync';
+import { requestNotificationPermission } from './src/utils/notifications';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -32,6 +33,7 @@ export default function App() {
 
   useEffect(() => {
     hydrate();
+    requestNotificationPermission();
   }, [hydrate]);
 
   if (isLoading) {

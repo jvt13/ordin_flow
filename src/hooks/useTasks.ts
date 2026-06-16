@@ -2,6 +2,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import NetInfo from '@react-native-community/netinfo';
 import * as taskService from '../services/task.service';
 import { useOfflineQueueStore } from '../store';
+import { scheduleTaskNotification, cancelTaskNotification } from '../utils/notifications';
 import type { TaskFilters } from '../types';
 
 export const taskKeys = {
@@ -87,8 +88,11 @@ export function useConfirmDraftTask() {
   return useMutation({
     mutationFn: taskService.confirmDraftTask,
     retry: false,
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      if (data?.dueDate && data?.id && data?.title) {
+        scheduleTaskNotification(data.id, data.title, data.dueDate);
+      }
     },
     onError: async (_error, draft) => {
       const state = await NetInfo.fetch();
@@ -119,9 +123,12 @@ export function useUpdateTask() {
   return useMutation({
     mutationFn: ({ id, payload }: { id: string; payload: Parameters<typeof taskService.updateTask>[1] }) =>
       taskService.updateTask(id, payload),
-    onSuccess: (_, { id }) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
-      queryClient.invalidateQueries({ queryKey: taskKeys.detail(id) });
+      queryClient.invalidateQueries({ queryKey: taskKeys.detail(data.id) });
+      if (data?.dueDate && data?.id && data?.title) {
+        scheduleTaskNotification(data.id, data.title, data.dueDate);
+      }
     },
   });
 }
@@ -130,8 +137,9 @@ export function useDeleteTask() {
   const queryClient = useQueryClient();
   return useMutation({
     mutationFn: taskService.deleteTask,
-    onSuccess: () => {
+    onSuccess: (_data, variables) => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
+      cancelTaskNotification(variables);
     },
   });
 }
