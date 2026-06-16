@@ -8,6 +8,7 @@ import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ActivityIndicator, View } from 'react-native';
 import { RootNavigator } from './src/navigation';
 import { useAuthStore } from './src/store';
+import { useOfflineSync } from './src/hooks/useOfflineSync';
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -17,6 +18,13 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+// Monitora a conexão e sincroniza a fila offline.
+// Precisa ficar dentro do QueryClientProvider (usa useQueryClient).
+function OfflineSync() {
+  useOfflineSync();
+  return null;
+}
 
 export default function App() {
   const { isAuthenticated, isLoading, hydrate, user } = useAuthStore();
@@ -38,6 +46,7 @@ export default function App() {
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
         <QueryClientProvider client={queryClient}>
+          <OfflineSync />
           <NavigationContainer>
             <StatusBar style="light" />
             <RootNavigator isAuthenticated={isAuthenticated} isAdmin={isAdmin} />

@@ -1,5 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import NetInfo from '@react-native-community/netinfo';
 import * as taskService from '../services/task.service';
+import { useOfflineQueueStore } from '../store';
 import type { TaskFilters } from '../types';
 
 export const taskKeys = {
@@ -87,6 +89,27 @@ export function useConfirmDraftTask() {
     retry: false,
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: taskKeys.all });
+    },
+    onError: async (_error, draft) => {
+      const state = await NetInfo.fetch();
+      if (!state.isConnected) {
+        let safeDraft = draft;
+        if (draft.attachments?.some((a) => a.localUri?.startsWith('file://'))) {
+          try {
+            const uploaded = await Promise.all(
+              draft.attachments.map(async (a) => {
+                if (!a.localUri?.startsWith('file://')) return a;
+                const url = await taskService.uploadImageAttachment(a.localUri);
+                return { ...a, localUri: undefined, url };
+              }),
+            );
+            safeDraft = { ...draft, attachments: uploaded };
+          } catch {
+            // se upload falhar sem conexão, enfileira com localUri mesmo
+          }
+        }
+        await useOfflineQueueStore.getState().addPending(safeDraft);
+      }
     },
   });
 }

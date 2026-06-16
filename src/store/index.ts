@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { User } from '../types';
+import type { TaskDraft, User } from '../types';
 import { clearAuthStorage, getRefreshToken, getStoredUser, saveTokens, saveUser } from '../utils/storage';
 import * as authService from '../services/auth.service';
+import { loadQueue, enqueue, dequeue, clearQueue, type OfflineTask } from '../features/offline/queue';
 
 interface AuthState {
   user: User | null;
@@ -112,15 +113,38 @@ export const useCaptureStore = create<CaptureState>((set) => ({
     }),
 }));
 
-// Preparado para fila offline futura
-interface OfflineQueueState {
-  pendingItems: unknown[];
-  addPending: (item: unknown) => void;
-  clearPending: () => void;
-}
+// Fila offline persistida em AsyncStorage (ver features/offline/queue.ts)
+type OfflineQueueState = {
+  pendingItems: OfflineTask[];
+  isLoaded: boolean;
+  hydrate: () => Promise<void>;
+  addPending: (draft: TaskDraft) => Promise<OfflineTask>;
+  removePending: (id: string) => Promise<void>;
+  clearPending: () => Promise<void>;
+};
 
-export const useOfflineQueueStore = create<OfflineQueueState>((set) => ({
+export const useOfflineQueueStore = create<OfflineQueueState>()((set) => ({
   pendingItems: [],
-  addPending: (item) => set((s) => ({ pendingItems: [...s.pendingItems, item] })),
-  clearPending: () => set({ pendingItems: [] }),
+  isLoaded: false,
+
+  hydrate: async () => {
+    const items = await loadQueue();
+    set({ pendingItems: items, isLoaded: true });
+  },
+
+  addPending: async (draft) => {
+    const task = await enqueue(draft);
+    set((s) => ({ pendingItems: [...s.pendingItems, task] }));
+    return task;
+  },
+
+  removePending: async (id) => {
+    await dequeue(id);
+    set((s) => ({ pendingItems: s.pendingItems.filter((t) => t.id !== id) }));
+  },
+
+  clearPending: async () => {
+    await clearQueue();
+    set({ pendingItems: [] });
+  },
 }));
