@@ -11,6 +11,7 @@ import {
   ScrollView,
   Text,
   TextInput,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import DateTimePicker, { DateTimePickerEvent } from '@react-native-community/datetimepicker';
@@ -50,6 +51,7 @@ export function TaskDetailScreen({ route, navigation }: Props) {
   const { taskId } = route.params;
   const { data: task, isLoading } = useTask(taskId);
   const updateTask = useUpdateTask();
+  const retryMutation = useUpdateTask();
   const deleteTask = useDeleteTask();
   const [updating, setUpdating] = useState(false);
   const [editVisible, setEditVisible] = useState(false);
@@ -179,6 +181,21 @@ export function TaskDetailScreen({ route, navigation }: Props) {
     );
   };
 
+  const handleRetry = async () => {
+    if (!task?.transcription) return;
+    try {
+      await retryMutation.mutateAsync({
+        id: task.id,
+        payload: {
+          transcription: task.transcription,
+          description: task.description ?? '',
+        },
+      });
+    } catch {
+      // erro já tratado pelo useUpdateTask
+    }
+  };
+
   const handleSaveEdit = async () => {
     if (!task) return;
     try {
@@ -260,6 +277,28 @@ export function TaskDetailScreen({ route, navigation }: Props) {
             <Text className="text-slate-400 text-sm mb-1">Transcrição original</Text>
             <Text className="text-white italic">{task.transcription}</Text>
           </Card>
+        )}
+
+        {(task as unknown as { aiRawResponse?: { retryable?: boolean } }).aiRawResponse?.retryable === true && (
+          <TouchableOpacity
+            onPress={handleRetry}
+            disabled={retryMutation.isPending}
+            style={{
+              marginTop: 12,
+              marginHorizontal: 16,
+              backgroundColor: '#F59E0B',
+              borderRadius: 8,
+              padding: 12,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              gap: 8,
+            }}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 14 }}>
+              {retryMutation.isPending ? 'Reprocessando...' : '⚡ Reprocessar com IA'}
+            </Text>
+          </TouchableOpacity>
         )}
 
         <Card className="mb-4">
